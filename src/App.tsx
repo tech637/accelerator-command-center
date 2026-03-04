@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { AcceleratorLayout } from "@/components/accelerator/AcceleratorLayout";
 import Landing from "@/pages/Landing";
@@ -29,7 +29,7 @@ const App = () => (
         <Toaster />
         <Sonner />
       <RoleProvider>
-        <BrowserRouter>
+        <HashRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/accelerator" element={<AcceleratorLayout />}>
@@ -50,7 +50,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
       </RoleProvider>
     </TooltipProvider>
     </ThemeProvider>

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -40,6 +40,18 @@ const stats = [
 ];
 
 export default function Landing() {
+  const navigate = useNavigate();
+
+  const goToDashboard = () => {
+    sessionStorage.setItem("fromLanding", "true");
+    navigate("/accelerator/dashboard");
+  };
+
+  const goToApplications = () => {
+    sessionStorage.setItem("fromLanding", "true");
+    navigate("/accelerator/applications");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -51,12 +63,10 @@ export default function Landing() {
             </div>
             <span className="text-lg font-semibold text-foreground">EERA Accelerator</span>
           </div>
-          <Link to="/accelerator/dashboard">
-            <Button variant="outline" size="sm" className="gap-2">
-              Dashboard
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
+          <Button variant="outline" size="sm" className="gap-2" onClick={goToDashboard}>
+            Dashboard
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
@@ -76,17 +86,13 @@ export default function Landing() {
             Manage cohorts, track portfolio health, review applications, and drive growth—all from one unified platform.
           </p>
           <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
-            <Link to="/accelerator/dashboard">
-              <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
-                Enter Dashboard
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-            <Link to="/accelerator/applications">
-              <Button size="lg" variant="outline">
-                View Applications
-              </Button>
-            </Link>
+            <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToDashboard}>
+              Enter Dashboard
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button size="lg" variant="outline" onClick={goToApplications}>
+              View Applications
+            </Button>
           </div>
         </div>
       </section>
@@ -142,12 +148,10 @@ export default function Landing() {
             <p className="mt-4 text-muted-foreground">
               Access the platform and start managing your accelerator program today.
             </p>
-            <Link to="/accelerator/dashboard" className="mt-8 inline-block">
-              <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
-                Enter Dashboard
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 mt-8" onClick={goToDashboard}>
+              Enter Dashboard
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </section>

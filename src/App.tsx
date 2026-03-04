@@ -3,7 +3,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { AcceleratorLayout } from "@/components/accelerator/AcceleratorLayout";
 import Landing from "@/pages/Landing";
@@ -22,6 +23,24 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function RedirectToLanding() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect to landing when visiting /accelerator/* directly (not from our "Enter Dashboard" click)
+    if (location.pathname.startsWith("/accelerator")) {
+      if (!sessionStorage.getItem("fromLanding")) {
+        navigate("/", { replace: true });
+      } else {
+        sessionStorage.removeItem("fromLanding");
+      }
+    }
+  }, [location.pathname, navigate]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -29,7 +48,8 @@ const App = () => (
         <Toaster />
         <Sonner />
       <RoleProvider>
-        <HashRouter>
+        <BrowserRouter>
+          <RedirectToLanding />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/accelerator" element={<AcceleratorLayout />}>
@@ -50,7 +70,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </HashRouter>
+        </BrowserRouter>
       </RoleProvider>
     </TooltipProvider>
     </ThemeProvider>

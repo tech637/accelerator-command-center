@@ -3,43 +3,27 @@ import { useNavigate } from "react-router-dom";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Zap, Loader2, CheckCircle2 } from "lucide-react";
 
-export default function ConfirmEmail() {
+export default function AuthCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
   useEffect(() => {
-    const handleConfirmation = async () => {
+    const handleCallback = async () => {
       if (!isSupabaseConfigured() || !supabase) {
         setStatus("error");
         return;
       }
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          setStatus("error");
-          return;
-        }
-        if (session) {
-          setStatus("success");
-          setTimeout(() => navigate("/accelerator/dashboard", { replace: true }), 1500);
-        } else {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-            setStatus("success");
-            window.history.replaceState(null, "", window.location.pathname);
-            setTimeout(() => navigate("/accelerator/dashboard", { replace: true }), 1500);
-          } else {
-            setStatus("error");
-          }
-        }
+        // Supabase already confirmed the email when user clicked the link.
+        // We do NOT setSession - user must come back and log in explicitly.
+        setStatus("success");
+        window.history.replaceState(null, "", window.location.pathname);
+        setTimeout(() => navigate("/login", { state: { emailConfirmed: true }, replace: true }), 2000);
       } catch {
         setStatus("error");
       }
     };
-    handleConfirmation();
+    handleCallback();
   }, [navigate]);
 
   return (
@@ -60,7 +44,7 @@ export default function ConfirmEmail() {
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">Email confirmed!</h1>
-            <p className="text-muted-foreground">Redirecting you to the dashboard...</p>
+            <p className="text-muted-foreground">Please log in with your email and password.</p>
           </>
         )}
         {status === "error" && (

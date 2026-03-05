@@ -39,8 +39,17 @@ export default function Login() {
     try {
       await login(email, password);
       navigate(from, { replace: true });
-    } catch {
-      setError("Invalid credentials. Please try again.");
+    } catch (err: unknown) {
+      const message = String((err as { message?: string })?.message ?? "");
+      const isEmailNotConfirmed =
+        message.toLowerCase().includes("email not confirmed") ||
+        message.toLowerCase().includes("email_not_confirmed") ||
+        message.toLowerCase().includes("invalid login");
+      if (isEmailNotConfirmed) {
+        setError("Please confirm your email first. Check your inbox and spam folder.");
+      } else {
+        setError(message || "Invalid credentials. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }

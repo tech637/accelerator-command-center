@@ -73,19 +73,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, password: string): Promise<{ needsEmailConfirmation: boolean }> => {
     if (isSupabaseConfigured() && supabase) {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/confirm-email`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) throw error;
-      const needsEmailConfirmation = !data.session && !!data.user;
-      if (data.session?.user?.email) {
-        setUser({ email: data.user.email, name: data.user.email.split("@")[0] });
-      }
-      return { needsEmailConfirmation };
+      // When Confirm email is ON, Supabase does NOT give a session immediately.
+      // Never set user - always send to check-email page.
+      return { needsEmailConfirmation: true };
     } else {
       const userData: User = { email, name: email.split("@")[0] };
       setUser(userData);

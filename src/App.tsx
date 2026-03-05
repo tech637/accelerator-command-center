@@ -11,7 +11,8 @@ import { AcceleratorLayout } from "@/components/accelerator/AcceleratorLayout";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
-import ConfirmEmail from "@/pages/ConfirmEmail";
+import CheckEmail from "@/pages/CheckEmail";
+import AuthCallback from "@/pages/AuthCallback";
 import AcceleratorDashboard from "@/pages/accelerator/Dashboard";
 import Cohorts from "@/pages/accelerator/Cohorts";
 import StartupProfile from "@/pages/accelerator/StartupProfile";
@@ -40,7 +41,8 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/confirm-email" element={<ConfirmEmail />} />
+            <Route path="/check-email" element={<CheckEmail />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/accelerator" element={<ProtectedRoute><AcceleratorLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/accelerator/dashboard" replace />} />
               <Route path="dashboard" element={<AcceleratorDashboard />} />

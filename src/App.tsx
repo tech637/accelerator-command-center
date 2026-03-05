@@ -3,11 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AcceleratorLayout } from "@/components/accelerator/AcceleratorLayout";
 import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
 import AcceleratorDashboard from "@/pages/accelerator/Dashboard";
 import Cohorts from "@/pages/accelerator/Cohorts";
 import StartupProfile from "@/pages/accelerator/StartupProfile";
@@ -23,36 +25,19 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function RedirectToLanding() {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // Redirect to landing when visiting /accelerator/* directly (not from our "Enter Dashboard" click)
-    if (location.pathname.startsWith("/accelerator")) {
-      if (!sessionStorage.getItem("fromLanding")) {
-        navigate("/", { replace: true });
-      } else {
-        sessionStorage.removeItem("fromLanding");
-      }
-    }
-  }, [location.pathname, navigate]);
-
-  return null;
-}
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <TooltipProvider>
         <Toaster />
         <Sonner />
+      <AuthProvider>
       <RoleProvider>
         <BrowserRouter>
-          <RedirectToLanding />
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/accelerator" element={<AcceleratorLayout />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/accelerator" element={<ProtectedRoute><AcceleratorLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/accelerator/dashboard" replace />} />
               <Route path="dashboard" element={<AcceleratorDashboard />} />
               <Route path="cohorts" element={<Cohorts />} />
@@ -72,6 +57,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </RoleProvider>
+      </AuthProvider>
     </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>

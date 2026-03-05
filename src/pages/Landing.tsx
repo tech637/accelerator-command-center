@@ -62,6 +62,7 @@ export default function Landing() {
   const { isAuthenticated } = useAuth();
 
   const goToLogin = () => navigate("/login");
+  const goToSignup = () => navigate("/signup");
   const goToDashboard = () => {
     sessionStorage.setItem("fromLanding", "true");
     navigate("/accelerator/dashboard");
@@ -90,8 +91,8 @@ export default function Landing() {
           ) : (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={goToLogin}>Log in</Button>
-              <Button size="sm" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToLogin}>
-                Get started
+              <Button size="sm" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToSignup}>
+                Sign up
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -122,12 +123,12 @@ export default function Landing() {
               </Button>
             ) : (
               <>
-                <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToLogin}>
-                  Start free trial
+                <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToSignup}>
+                  Sign up
                   <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button size="lg" variant="outline" onClick={goToLogin}>
-                  Request demo
+                  Log in
                 </Button>
               </>
             )}
@@ -219,12 +220,12 @@ export default function Landing() {
                 </Button>
               ) : (
                 <>
-                  <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToLogin}>
-                    Start free trial
+                  <Button size="lg" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90" onClick={goToSignup}>
+                    Sign up
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                   <Button size="lg" variant="outline" onClick={goToLogin}>
-                    Request demo
+                    Log in
                   </Button>
                 </>
               )}

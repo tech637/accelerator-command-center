@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface User {
   email: string;
@@ -10,6 +11,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
   logout: () => void;
 }
 
@@ -22,24 +24,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem(AUTH_KEY);
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem(AUTH_KEY);
+    let unsubscribe: (() => void) | undefined;
+    const initAuth = async () => {
+      if (isSupabaseConfigured() && supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+          setUser({ email: session.user.email, name: session.user.email.split("@")[0] });
+        } else {
+          setUser(null);
+        }
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (session?.user?.email) {
+            setUser({ email: session.user.email, name: session.user.email.split("@")[0] });
+          } else {
+            setUser(null);
+          }
+        });
+        unsubscribe = () => subscription.unsubscribe();
+      } else {
+        const stored = localStorage.getItem(AUTH_KEY);
+        if (stored) {
+          try {
+            setUser(JSON.parse(stored));
+          } catch {
+            localStorage.removeItem(AUTH_KEY);
+          }
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+    initAuth();
+    return () => unsubscribe?.();
   }, []);
 
-  const login = async (email: string, _password: string) => {
-    const userData: User = { email, name: email.split("@")[0] };
-    setUser(userData);
-    localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+  const login = async (email: string, password: string) => {
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (data.user?.email) {
+        setUser({ email: data.user.email, name: data.user.email.split("@")[0] });
+      }
+    } else {
+      const userData: User = { email, name: email.split("@")[0] };
+      setUser(userData);
+      localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+    }
   };
 
-  const logout = () => {
+  const signup = async (email: string, password: string): Promise<{ needsEmailConfirmation: boolean }> => {
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/confirm-email`,
+        },
+      });
+      if (error) throw error;
+      const needsEmailConfirmation = !data.session && !!data.user;
+      if (data.session?.user?.email) {
+        setUser({ email: data.user.email, name: data.user.email.split("@")[0] });
+      }
+      return { needsEmailConfirmation };
+    } else {
+      const userData: User = { email, name: email.split("@")[0] };
+      setUser(userData);
+      localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+      return { needsEmailConfirmation: false };
+    }
+  };
+
+  const logout = async () => {
+    if (isSupabaseConfigured() && supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     localStorage.removeItem(AUTH_KEY);
   };
@@ -51,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         isLoading,
         login,
+        signup,
         logout,
       }}
     >

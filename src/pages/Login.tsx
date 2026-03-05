@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,13 +102,10 @@ export default function Login() {
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="text-accent hover:underline"
-          >
-            ← Back to home
-          </button>
+          Don't have an account?{" "}
+          <Link to="/signup" className="text-accent hover:underline font-medium">Sign up</Link>
+          {" · "}
+          <Link to="/" className="text-accent hover:underline">← Back to home</Link>
         </p>
       </div>
     </div>

@@ -1,5 +1,4 @@
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import { useRole } from "@/contexts/RoleContext";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { RoleSwitcher } from "./RoleSwitcher";
@@ -9,7 +8,6 @@ import {
   FileText,
   Settings,
   Inbox,
-  Home,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,7 +23,6 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Home", url: "/", icon: Home, roles: ["admin", "program_manager", "mentor"] as const },
   { title: "Dashboard", url: "/accelerator/dashboard", icon: LayoutDashboard, roles: ["admin", "program_manager", "mentor"] as const },
   { title: "Cohorts", url: "/accelerator/cohorts", icon: Users, roles: ["admin", "program_manager", "mentor"] as const },
   { title: "Applications", url: "/accelerator/applications", icon: Inbox, roles: ["admin", "program_manager"] as const },

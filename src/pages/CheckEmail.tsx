@@ -14,7 +14,7 @@ export default function CheckEmail() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Check your email</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            We sent a confirmation link to <strong>{email}</strong>. Please verify, then come back and log in.
+            We sent a confirmation link to <strong>{email}</strong>. Please verify, then come back and login.
           </p>
         </div>
         <p className="text-center text-sm text-muted-foreground">

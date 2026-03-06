@@ -27,6 +27,8 @@ export default function AuthCallback() {
         if (window.location.hash) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
+        // Sign out so user must enter credentials on login page (don't auto-log them in)
+        await supabase.auth.signOut();
         setStatus("success");
         setTimeout(() => navigate("/login", { state: { emailConfirmed: true }, replace: true }), 2000);
       } catch (err) {

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { Sparkles } from "lucide-react";
 
 export default function Login() {
@@ -44,7 +45,8 @@ export default function Login() {
       const isEmailNotConfirmed =
         message.toLowerCase().includes("email not confirmed") ||
         message.toLowerCase().includes("email_not_confirmed") ||
-        message.toLowerCase().includes("invalid login");
+        message.toLowerCase().includes("invalid login") ||
+        message.toLowerCase().includes("invalid login credentials");
       if (isEmailNotConfirmed) {
         setError("Please confirm your email first. Check your inbox and spam folder.");
       } else {
@@ -105,9 +107,11 @@ export default function Login() {
           >
             {isLoading ? "Signing in..." : "Sign in"}
           </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Demo: Enter any email and password to sign in
-          </p>
+          {!isSupabaseConfigured() && (
+            <p className="text-center text-xs text-muted-foreground">
+              Demo: Enter any email and password to sign in
+            </p>
+          )}
         </form>
 
         <p className="text-center text-sm text-muted-foreground">

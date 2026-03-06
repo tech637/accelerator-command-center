@@ -27,10 +27,9 @@ export default function AuthCallback() {
         if (window.location.hash) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
-        // Sign out so user must enter credentials on login page (don't auto-log them in)
-        await supabase.auth.signOut();
         setStatus("success");
-        setTimeout(() => navigate("/login", { state: { emailConfirmed: true }, replace: true }), 2000);
+        // Session is established - go directly to dashboard
+        setTimeout(() => navigate("/accelerator/dashboard", { replace: true }), 1000);
       } catch (err) {
         setStatus("error");
         setErrorMsg(err instanceof Error ? err.message : "Confirmation failed");
@@ -57,7 +56,7 @@ export default function AuthCallback() {
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">Email confirmed!</h1>
-            <p className="text-muted-foreground">Please log in with your email and password.</p>
+            <p className="text-muted-foreground">Taking you to the dashboard...</p>
           </>
         )}
         {status === "error" && (

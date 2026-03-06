@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AcceleratorLayout } from "@/components/accelerator/AcceleratorLayout";
 import Landing from "@/pages/Landing";
@@ -37,6 +38,7 @@ const App = () => (
         <Toaster />
         <Sonner />
       <AuthProvider>
+      <WorkspaceProvider>
       <RoleProvider>
         <BrowserRouter>
           <Routes>
@@ -65,6 +67,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </RoleProvider>
+      </WorkspaceProvider>
       </AuthProvider>
     </TooltipProvider>
     </ThemeProvider>

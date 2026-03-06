@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupabaseConfigured } from "@/lib/supabase";
 import { Zap } from "lucide-react";
 
 export default function Signup() {
@@ -56,7 +55,7 @@ export default function Signup() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign up for EERA Command Center. {isSupabaseConfigured() && "We'll send a confirmation link to your email."}
+            Sign up for EERA Command Center. We'll send a confirmation link to your email.
           </p>
         </div>
 
@@ -110,11 +109,6 @@ export default function Signup() {
           >
             {isLoading ? "Creating account..." : "Sign up"}
           </Button>
-          {!isSupabaseConfigured() && (
-            <p className="text-center text-xs text-muted-foreground">
-              Demo mode: No email sent. Go to Log in after signing up.
-            </p>
-          )}
         </form>
 
         <p className="text-center text-sm text-muted-foreground">

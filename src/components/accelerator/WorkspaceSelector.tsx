@@ -6,17 +6,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Building2 } from "lucide-react";
-
-const workspaces = [
-  { id: "ws-1", name: "TechStars MENA" },
-  { id: "ws-2", name: "Flat6Labs Cairo" },
-  { id: "ws-3", name: "500 Global Batch 32" },
-];
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 export function WorkspaceSelector() {
+  const { workspaces, workspaceId, setWorkspaceId } = useWorkspace();
+
+  if (!workspaceId || workspaces.length === 0) {
+    return null;
+  }
+
   return (
     <div className="px-4 py-4">
-      <Select defaultValue="ws-1">
+      <Select value={workspaceId} onValueChange={setWorkspaceId}>
         <SelectTrigger className="h-9 text-sm font-semibold border-none bg-sidebar-accent shadow-none">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-accent" />

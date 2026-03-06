@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupabaseConfigured } from "@/lib/supabase";
 import { Sparkles } from "lucide-react";
 
 export default function Login() {
@@ -107,11 +106,6 @@ export default function Login() {
           >
             {isLoading ? "Signing in..." : "Sign in"}
           </Button>
-          {!isSupabaseConfigured() && (
-            <p className="text-center text-xs text-muted-foreground">
-              Demo mode: Not connected to Supabase. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to connect.
-            </p>
-          )}
         </form>
 
         <p className="text-center text-sm text-muted-foreground">

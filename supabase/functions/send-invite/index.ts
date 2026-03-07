@@ -46,17 +46,6 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  // #region agent log
-  console.log("debug_send_invite_auth_header", {
-    runId: "invite-debug-2",
-    hypothesisId: "H5",
-    hasAuthorizationHeader: !!authHeader,
-    startsWithBearer: !!authHeader?.startsWith("Bearer "),
-    tokenDotCount: authHeader?.startsWith("Bearer ")
-      ? (authHeader.replace("Bearer ", "").trim().match(/\./g)?.length ?? 0)
-      : null,
-  });
-  // #endregion
   if (!authHeader?.startsWith("Bearer ")) {
     return json(401, { error: "Missing bearer token" });
   }
@@ -68,17 +57,6 @@ Deno.serve(async (req) => {
     data: { user: caller },
     error: userError,
   } = await adminClient.auth.getUser(token);
-  // #region agent log
-  console.log("debug_send_invite_get_user", {
-    runId: "invite-debug-2",
-    hypothesisId: "H2",
-    hasCaller: !!caller,
-    callerIdPrefix: caller?.id?.slice(0, 8) ?? null,
-    userErrorMessage: userError?.message ?? null,
-    userErrorStatus: (userError as { status?: number } | null)?.status ?? null,
-  });
-  // #endregion
-
   if (userError || !caller) {
     return json(401, { error: "Invalid session token", reason: userError?.message ?? "No user found from JWT" });
   }

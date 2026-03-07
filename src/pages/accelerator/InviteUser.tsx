@@ -14,6 +14,30 @@ import { useToast } from "@/hooks/use-toast";
 
 type InviteRole = "program_manager" | "mentor";
 
+const debugLog = (payload: {
+  runId: string;
+  hypothesisId: string;
+  location: string;
+  message: string;
+  data: Record<string, unknown>;
+}) => {
+  // #region agent log
+  fetch("http://127.0.0.1:7295/ingest/21c5ce40-04a5-45db-a461-3a464b2322c8", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "4c66df" },
+    body: JSON.stringify({
+      sessionId: "4c66df",
+      runId: payload.runId,
+      hypothesisId: payload.hypothesisId,
+      location: payload.location,
+      message: payload.message,
+      data: payload.data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+};
+
 export default function InviteUser() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -26,11 +50,46 @@ export default function InviteUser() {
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
+      debugLog({
+        runId: "invite-debug-1",
+        hypothesisId: "H2",
+        location: "src/pages/accelerator/InviteUser.tsx:mutation:start",
+        message: "Invite mutation started",
+        data: {
+          hasSupabaseClient: !!supabase,
+          hasWorkspaceId: !!workspaceId,
+          hasName: !!name.trim(),
+          hasEmail: !!email.trim(),
+          selectedRole: inviteRole,
+        },
+      });
       if (!supabase) throw new Error("Supabase is not configured.");
       if (!workspaceId) throw new Error("No active workspace selected.");
       if (!name.trim() || !email.trim()) throw new Error("Name and email are required.");
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      debugLog({
+        runId: "invite-debug-1",
+        hypothesisId: "H2",
+        location: "src/pages/accelerator/InviteUser.tsx:mutation:session",
+        message: "Session snapshot before function invoke",
+        data: {
+          hasSession: !!session,
+          hasUser: !!session?.user,
+          hasAccessToken: !!session?.access_token,
+          userIdPrefix: session?.user?.id?.slice(0, 8) ?? null,
+        },
+      });
+      if (!session?.access_token) {
+        throw new Error("Your session expired. Please sign in again and resend the invite.");
+      }
+
       const { data, error } = await supabase.functions.invoke("send-invite", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: {
           workspaceId,
           name: name.trim(),
@@ -39,9 +98,33 @@ export default function InviteUser() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        debugLog({
+          runId: "invite-debug-1",
+          hypothesisId: "H3",
+          location: "src/pages/accelerator/InviteUser.tsx:mutation:invokeError",
+          message: "Function invoke returned error",
+          data: {
+            errorName: error.name,
+            errorMessage: error.message,
+            errorContext: (error as { context?: unknown }).context ? "present" : "none",
+          },
+        });
+        throw error;
+      }
 
       const response = data as { error?: string; email?: string } | null;
+      debugLog({
+        runId: "invite-debug-1",
+        hypothesisId: "H4",
+        location: "src/pages/accelerator/InviteUser.tsx:mutation:invokeSuccess",
+        message: "Function invoke success payload",
+        data: {
+          hasResponse: !!response,
+          hasResponseError: !!response?.error,
+          hasResponseEmail: !!response?.email,
+        },
+      });
       if (response?.error) {
         throw new Error(response.error);
       }

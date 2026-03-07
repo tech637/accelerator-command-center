@@ -1,15 +1,14 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useRole } from "@/contexts/RoleContext";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,19 +23,6 @@ export default function InviteUser() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteRole>("mentor");
-  const [message, setMessage] = useState("You have been invited to join our accelerator workspace.");
-
-  const { data: workspace } = useQuery({
-    queryKey: ["workspace", workspaceId],
-    enabled: !!workspaceId && !!supabase,
-    queryFn: async () => {
-      if (!supabase || !workspaceId) return null;
-      const { data } = await supabase.from("workspaces").select("name").eq("id", workspaceId).maybeSingle();
-      return data;
-    },
-  });
-
-  const inviteLink = useMemo(() => `${window.location.origin}/signup`, []);
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
@@ -44,78 +30,39 @@ export default function InviteUser() {
       if (!workspaceId) throw new Error("No active workspace selected.");
       if (!name.trim() || !email.trim()) throw new Error("Name and email are required.");
 
-      const normalized = email.trim().toLowerCase();
+      const { data, error } = await supabase.functions.invoke("send-invite", {
+        body: {
+          workspaceId,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          role: inviteRole,
+        },
+      });
 
-      const { error } = await supabase
-        .from("team_members")
-        .upsert(
-          {
-            workspace_id: workspaceId,
-            email: normalized,
-            name: name.trim(),
-            role: inviteRole,
-            status: "invited",
-          },
-          { onConflict: "workspace_id,email" },
-        );
       if (error) throw error;
 
-      // If invited email already has an account, grant role now so they can access immediately.
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", normalized)
-        .maybeSingle();
-      if (profileError) throw profileError;
-
-      if (profile?.id) {
-        const { error: roleError } = await supabase.from("user_roles").upsert(
-          {
-            user_id: profile.id,
-            workspace_id: workspaceId,
-            role: inviteRole,
-          },
-          { onConflict: "user_id,workspace_id" },
-        );
-        if (roleError) throw roleError;
-
-        const { error: memberError } = await supabase
-          .from("team_members")
-          .update({ status: "active", role: inviteRole })
-          .eq("workspace_id", workspaceId)
-          .eq("email", normalized);
-        if (memberError) throw memberError;
+      const response = data as { error?: string; email?: string } | null;
+      if (response?.error) {
+        throw new Error(response.error);
       }
 
-      return { normalized, hasExistingAccount: !!profile?.id };
+      return { invitedEmail: response?.email ?? email.trim().toLowerCase() };
     },
-    onSuccess: ({ hasExistingAccount }) => {
+    onSuccess: ({ invitedEmail }) => {
       queryClient.invalidateQueries({ queryKey: ["team-members", workspaceId] });
-      if (hasExistingAccount) {
-        toast({
-          title: "User added to workspace",
-          description: "This email already has an account, so access was granted immediately.",
-        });
-      } else {
-        const subject = encodeURIComponent(`Invitation to ${workspace?.name ?? "EERA Accelerator"}`);
-        const body = encodeURIComponent(
-          `${message}\n\nRole: ${inviteRole}\nWorkspace: ${workspace?.name ?? "EERA Accelerator"}\nSign up here: ${inviteLink}\n`,
-        );
-        window.location.href = `mailto:${email.trim()}?subject=${subject}&body=${body}`;
-        toast({
-          title: "Invite prepared",
-          description: "Invitation saved. Your email client was opened with the invite.",
-        });
-      }
-
+      toast({
+        title: "Invite sent",
+        description: `Invite sent to ${invitedEmail}`,
+      });
       setName("");
       setEmail("");
       setInviteRole("mentor");
+      navigate("/accelerator/settings");
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Invite failed",
-        description: "Could not create invitation. Check workspace and Supabase configuration.",
+        description: error instanceof Error ? error.message : "Could not send invite.",
         variant: "destructive",
       });
     },
@@ -159,12 +106,7 @@ export default function InviteUser() {
           </div>
           <div>
             <Label className="text-xs">Email</Label>
-            <Input
-              className="mt-1"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-            />
+            <Input className="mt-1" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
           </div>
           <div>
             <Label className="text-xs">Role</Label>
@@ -177,14 +119,6 @@ export default function InviteUser() {
                 <SelectItem value="mentor">Mentor</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Message</Label>
-            <Textarea className="mt-1 min-h-[100px]" value={message} onChange={(e) => setMessage(e.target.value)} />
-          </div>
-          <div className="rounded-md border bg-muted/40 p-3">
-            <p className="text-xs text-muted-foreground">Invite link</p>
-            <p className="text-sm font-medium break-all">{inviteLink}</p>
           </div>
           <Button
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-2"

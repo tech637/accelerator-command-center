@@ -49,37 +49,6 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       };
 
-      const activateInvites = async () => {
-        const normalizedEmail = user.email.trim().toLowerCase();
-        const { data: invites, error } = await supabase
-          .from("team_members")
-          .select("workspace_id, role")
-          .eq("email", normalizedEmail);
-        if (error) throw error;
-        if (!invites?.length) return;
-
-        await Promise.all(
-          invites.map(async (invite) => {
-            const { error: roleError } = await supabase.from("user_roles").upsert(
-              {
-                user_id: user.id,
-                workspace_id: invite.workspace_id,
-                role: invite.role,
-              },
-              { onConflict: "user_id,workspace_id" },
-            );
-            if (roleError) throw roleError;
-
-            const { error: memberError } = await supabase
-              .from("team_members")
-              .update({ status: "active", name: user.name ?? normalizedEmail.split("@")[0] })
-              .eq("workspace_id", invite.workspace_id)
-              .eq("email", normalizedEmail);
-            if (memberError) throw memberError;
-          }),
-        );
-      };
-
       const loadMemberships = async () => {
         const { data, error } = await supabase
           .from("user_roles")
@@ -132,7 +101,6 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       try {
         await ensureProfile();
-        await activateInvites();
         let next = await loadMemberships();
         if (next.length === 0) {
           await bootstrapWorkspace();

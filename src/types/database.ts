@@ -356,27 +356,33 @@ export type Database = {
       };
       team_members: {
         Row: {
+          accepted_at: string | null;
           created_at: string;
           email: string;
           id: string;
+          invited_at: string | null;
           name: string;
           role: string;
           status: string;
           workspace_id: string;
         };
         Insert: {
+          accepted_at?: string | null;
           created_at?: string;
           email: string;
           id?: string;
+          invited_at?: string | null;
           name: string;
           role: string;
           status?: string;
           workspace_id: string;
         };
         Update: {
+          accepted_at?: string | null;
           created_at?: string;
           email?: string;
           id?: string;
+          invited_at?: string | null;
           name?: string;
           role?: string;
           status?: string;

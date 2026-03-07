@@ -15,6 +15,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import CheckEmail from "@/pages/CheckEmail";
 import AuthCallback from "@/pages/AuthCallback";
+import InviteAccept from "@/pages/InviteAccept";
 import AcceleratorDashboard from "@/pages/accelerator/Dashboard";
 import Cohorts from "@/pages/accelerator/Cohorts";
 import StartupProfile from "@/pages/accelerator/StartupProfile";
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/check-email" element={<CheckEmail />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/invite/accept" element={<InviteAccept />} />
             <Route path="/accelerator" element={<ProtectedRoute><AcceleratorLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/accelerator/dashboard" replace />} />
               <Route path="dashboard" element={<AcceleratorDashboard />} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,73 +8,12 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRole } from "@/contexts/RoleContext";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import {
-  ArrowLeft, Brain, CheckCircle, AlertTriangle, XCircle, Sparkles,
-  Clock, Tag, MessageSquare, ArrowUpRight, Lock,
+  ArrowLeft, Brain, CheckCircle, Sparkles, Clock, Tag, MessageSquare, Lock,
 } from "lucide-react";
-
-const applicationData = {
-  id: "a1",
-  applicantName: "James Okafor",
-  startupName: "PayStack Lite",
-  email: "james@paystack-lite.com",
-  industry: "FinTech",
-  stage: "Seed",
-  revenue: "$45K MRR",
-  teamSize: 8,
-  dateApplied: "Mar 1, 2026",
-  status: "shortlisted" as const,
-  sections: [
-    {
-      title: "Founder Information",
-      answers: [
-        { question: "Full Name", answer: "James Okafor" },
-        { question: "Email Address", answer: "james@paystack-lite.com" },
-        { question: "Startup Name", answer: "PayStack Lite" },
-        { question: "Industry", answer: "FinTech" },
-      ],
-    },
-    {
-      title: "Traction & Financials",
-      answers: [
-        { question: "Monthly Revenue (USD)", answer: "$45,000" },
-        { question: "Stage", answer: "Seed" },
-        { question: "What problem are you solving?", answer: "Small businesses in Africa lose 15-20% of revenue to payment processing friction. PayStack Lite simplifies merchant onboarding and reduces transaction costs by 40% through direct bank integration and mobile money rails." },
-        { question: "Pitch Deck", answer: "paystack-lite-deck-2026.pdf" },
-      ],
-    },
-    {
-      title: "Team & Vision",
-      answers: [
-        { question: "Team Size", answer: "8 (4 engineers, 2 ops, 1 design, 1 BD)" },
-        { question: "Previous Exits", answer: "Co-founder previously built and sold PayMerchant (acqui-hired by GTBank)" },
-        { question: "12-month goal", answer: "Reach $150K MRR and expand to 3 new markets (Kenya, Tanzania, Rwanda)" },
-      ],
-    },
-  ],
-  ai: {
-    summary: "PayStack Lite is a payment infrastructure startup targeting African SMBs. Strong founder-market fit with previous fintech exit. Clear traction with $45K MRR and growing. Well-defined expansion strategy. Team appears technically capable with strong engineering ratio.",
-    strengths: [
-      "Strong founder with previous exit in same domain",
-      "Clear product-market fit with measurable traction",
-      "$45K MRR demonstrates real demand",
-      "Well-defined expansion roadmap",
-    ],
-    risks: [
-      "Payment infrastructure is heavily regulated across African markets",
-      "Competition from established players (Flutterwave, Paystack)",
-      "Cross-border expansion introduces FX complexity",
-    ],
-    fitRating: "strong" as const,
-    suggestedDecision: "Recommend shortlisting. Strong team, clear traction, and domain expertise. Regulatory risk should be explored in interview stage.",
-    confidence: 0.87,
-  },
-  reviewHistory: [
-    { date: "Mar 2, 2026", reviewer: "Sarah K.", action: "Moved to Screening", notes: "Strong application. Clear traction." },
-    { date: "Mar 3, 2026", reviewer: "Ahmed M.", action: "Scored 8.2", notes: "Excellent founder background. Revenue is solid for stage." },
-    { date: "Mar 3, 2026", reviewer: "Sarah K.", action: "Moved to Shortlisted", notes: "Agreed with Ahmed. Worth interviewing." },
-  ],
-};
 
 const stageColors: Record<string, string> = {
   applied: "bg-muted text-muted-foreground",
@@ -87,16 +26,92 @@ const stageColors: Record<string, string> = {
 
 export default function ApplicationReview() {
   const { applicationId } = useParams();
+  const { workspaceId } = useWorkspace();
   const navigate = useNavigate();
-  const { role, canAccess } = useRole();
-  const [score, setScore] = useState([8]);
+  const queryClient = useQueryClient();
+  const { canAccess } = useRole();
+  const [score, setScore] = useState([5]);
   const [recommendation, setRecommendation] = useState("shortlist");
   const [notes, setNotes] = useState("");
-  const [tags, setTags] = useState<string[]>(["Strong Team"]);
+  const [tags, setTags] = useState<string[]>([]);
+  const { data: application } = useQuery({
+    queryKey: ["application-review", workspaceId, applicationId],
+    enabled: !!workspaceId && !!applicationId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId || !applicationId) return null;
+      const { data } = await supabase
+        .from("applications")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("id", applicationId)
+        .single();
+      return data;
+    },
+  });
+  const { data: history = [] } = useQuery({
+    queryKey: ["application-history", workspaceId, application?.startup_id],
+    enabled: !!workspaceId && !!application?.startup_id && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId || !application?.startup_id) return [];
+      const { data } = await supabase
+        .from("startup_reviews")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("startup_id", application.startup_id)
+        .order("review_date", { ascending: false })
+        .limit(10);
+      return data ?? [];
+    },
+  });
+  const saveReview = useMutation({
+    mutationFn: async () => {
+      if (!supabase || !workspaceId || !applicationId) return;
+      const mappedStatus =
+        recommendation === "accept"
+          ? "accepted"
+          : recommendation === "interview"
+            ? "interview"
+            : recommendation === "reject"
+              ? "rejected"
+              : recommendation === "shortlist"
+                ? "shortlisted"
+                : "screening";
+
+      await supabase
+        .from("applications")
+        .update({
+          score: score[0],
+          notes,
+          status: mappedStatus,
+        })
+        .eq("workspace_id", workspaceId)
+        .eq("id", applicationId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["application-review", workspaceId, applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["applications", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline", workspaceId] });
+    },
+  });
 
   const canReview = canAccess(["admin", "program_manager", "mentor"]);
+  const payloadEntries = useMemo(() => {
+    if (!application?.payload || typeof application.payload !== "object" || Array.isArray(application.payload)) return [];
+    return Object.entries(application.payload).map(([k, v]) => ({ question: k, answer: String(v) }));
+  }, [application?.payload]);
 
   const tagOptions = ["Risk", "Strong Team", "Weak Traction", "Great Market", "Regulatory Concern", "Strong Revenue"];
+
+  useEffect(() => {
+    if (!application) return;
+    setScore([application.score ?? 5]);
+    setNotes(application.notes ?? "");
+    if (application.status === "accepted") setRecommendation("accept");
+    else if (application.status === "interview") setRecommendation("interview");
+    else if (application.status === "rejected") setRecommendation("reject");
+    else if (application.status === "shortlisted") setRecommendation("shortlist");
+    else setRecommendation("hold");
+  }, [application]);
 
   const toggleTag = (tag: string) => {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -114,20 +129,23 @@ export default function ApplicationReview() {
             </Button>
             <div className="flex-1">
               <div className="flex items-center gap-3">
-                <h1 className="text-xl font-semibold">{applicationData.startupName}</h1>
-                <Badge className={`text-xs capitalize ${stageColors[applicationData.status]}`}>{applicationData.status}</Badge>
+                <h1 className="text-xl font-semibold">{application?.startup_name ?? "Application"}</h1>
+                <Badge className={`text-xs capitalize ${stageColors[application?.status ?? "applied"]}`}>{application?.status ?? "applied"}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground">{applicationData.applicantName} · {applicationData.industry} · Applied {applicationData.dateApplied}</p>
+              <p className="text-sm text-muted-foreground">
+                {application?.applicant_name ?? "Applicant"} · {application?.industry ?? "—"} · Applied{" "}
+                {application?.date_applied ? new Date(application.date_applied).toLocaleDateString() : "—"}
+              </p>
             </div>
           </div>
 
           {/* Quick stats */}
           <div className="grid grid-cols-4 gap-3">
             {[
-              { label: "Revenue", value: applicationData.revenue },
-              { label: "Stage", value: applicationData.stage },
-              { label: "Team", value: `${applicationData.teamSize} people` },
-              { label: "Industry", value: applicationData.industry },
+              { label: "Revenue", value: application?.revenue ? `$${Math.round(application.revenue / 1000)}K` : "—" },
+              { label: "Stage", value: application?.stage ?? "—" },
+              { label: "AI Fit", value: application?.ai_fit ?? "—" },
+              { label: "Industry", value: application?.industry ?? "—" },
             ].map((stat) => (
               <Card key={stat.label} className="shadow-sm">
                 <CardContent className="p-3 text-center">
@@ -139,21 +157,22 @@ export default function ApplicationReview() {
           </div>
 
           {/* Sections */}
-          {applicationData.sections.map((section) => (
-            <Card key={section.title} className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{section.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {section.answers.map((a) => (
-                  <div key={a.question}>
-                    <p className="text-xs font-medium text-muted-foreground">{a.question}</p>
-                    <p className="text-sm mt-0.5">{a.answer}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Submitted Responses</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {payloadEntries.map((a) => (
+                <div key={a.question}>
+                  <p className="text-xs font-medium text-muted-foreground">{a.question}</p>
+                  <p className="text-sm mt-0.5">{a.answer}</p>
+                </div>
+              ))}
+              {payloadEntries.length === 0 && (
+                <p className="text-sm text-muted-foreground">No structured payload submitted for this application.</p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Stage change history */}
           <Card className="shadow-sm">
@@ -164,20 +183,23 @@ export default function ApplicationReview() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {applicationData.reviewHistory.map((entry, i) => (
-                  <div key={i} className="flex gap-3">
+                {history.map((entry) => (
+                  <div key={entry.id} className="flex gap-3">
                     <div className="w-1.5 h-1.5 rounded-full bg-accent mt-2 shrink-0" />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium">{entry.reviewer}</span>
+                        <span className="text-xs font-medium">{entry.reviewer ?? "Reviewer"}</span>
                         <span className="text-xs text-muted-foreground">·</span>
-                        <span className="text-xs text-muted-foreground">{entry.date}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(entry.review_date).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-sm font-medium">{entry.action}</p>
-                      {entry.notes && <p className="text-xs text-muted-foreground mt-0.5">{entry.notes}</p>}
+                      <p className="text-sm font-medium">Score {entry.score ?? "—"}</p>
+                      {entry.flags && <p className="text-xs text-muted-foreground mt-0.5">{entry.flags}</p>}
                     </div>
                   </div>
                 ))}
+                {history.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No review history yet.</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -196,44 +218,26 @@ export default function ApplicationReview() {
                 <Sparkles className="h-4 w-4 text-accent" /> AI Analysis
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Badge className="text-[10px] bg-success/10 text-success">{applicationData.ai.fitRating} fit</Badge>
-                <span className="text-[10px] text-muted-foreground">{Math.round(applicationData.ai.confidence * 100)}% confidence</span>
+                <Badge className="text-[10px] bg-success/10 text-success">{application?.ai_fit ?? "n/a"} fit</Badge>
+                <span className="text-[10px] text-muted-foreground">Model-assisted summary</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Summary</p>
-                <p className="text-xs leading-relaxed">{applicationData.ai.summary}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3 text-success" /> Strengths
+                <p className="text-xs leading-relaxed">
+                  {application?.notes || "Use this panel to write your own assessment and recommendation."}
                 </p>
-                <ul className="space-y-1">
-                  {applicationData.ai.strengths.map((s, i) => (
-                    <li key={i} className="text-xs text-foreground flex items-start gap-1.5">
-                      <span className="text-success mt-0.5">•</span> {s}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3 text-warning" /> Risks
-                </p>
-                <ul className="space-y-1">
-                  {applicationData.ai.risks.map((r, i) => (
-                    <li key={i} className="text-xs text-foreground flex items-start gap-1.5">
-                      <span className="text-warning mt-0.5">•</span> {r}
-                    </li>
-                  ))}
-                </ul>
               </div>
               <div className="p-2 rounded-md bg-accent/10 border border-accent/20">
                 <p className="text-xs font-medium text-accent flex items-center gap-1">
                   <Brain className="h-3 w-3" /> Suggested Decision
                 </p>
-                <p className="text-xs mt-1">{applicationData.ai.suggestedDecision}</p>
+                <p className="text-xs mt-1">
+                  {application?.ai_fit
+                    ? `Current AI fit is ${application.ai_fit}. Set score, notes, and recommendation, then submit.`
+                    : "No AI insight is available yet for this application. Set score and recommendation manually."}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -274,14 +278,6 @@ export default function ApplicationReview() {
                 </div>
               </div>
 
-              {/* Red flags */}
-              <div>
-                <p className="text-xs font-medium mb-2 flex items-center gap-1">
-                  <XCircle className="h-3 w-3 text-destructive" /> Red Flags
-                </p>
-                <Textarea placeholder="Note any red flags..." className="text-sm min-h-[60px]" />
-              </div>
-
               {/* Internal notes */}
               <div>
                 <p className="text-xs font-medium mb-2 flex items-center gap-1">
@@ -315,14 +311,13 @@ export default function ApplicationReview() {
               <Separator />
 
               <div className="space-y-2">
-                <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-1">
+                <Button
+                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-1"
+                  onClick={() => saveReview.mutate()}
+                  disabled={saveReview.isPending}
+                >
                   <CheckCircle className="h-4 w-4" /> Submit Review
                 </Button>
-                {(applicationData.status as string) === "accepted" && (
-                  <Button variant="outline" className="w-full gap-1">
-                    <ArrowUpRight className="h-4 w-4" /> Promote to Cohort
-                  </Button>
-                )}
               </div>
             </>
           ) : (

@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate, useParams } from "react-router-dom";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import {
   Type, AlignLeft, ListChecks, ChevronDown, Upload, Hash, ToggleLeft, Heading,
   GripVertical, Trash2, ArrowLeft, Eye, Save, Lock,
@@ -34,27 +37,109 @@ const questionBlocks: { type: QuestionType; label: string; icon: React.ElementTy
   { type: "section_header", label: "Section Header", icon: Heading },
 ];
 
-const initialQuestions: Question[] = [
-  { id: "q1", type: "section_header", label: "Founder Information", required: false, description: "" },
-  { id: "q2", type: "short_text", label: "Full Name", required: true, description: "Legal name of the primary founder" },
-  { id: "q3", type: "short_text", label: "Email Address", required: true, description: "" },
-  { id: "q4", type: "short_text", label: "Startup Name", required: true, description: "" },
-  { id: "q5", type: "dropdown", label: "Industry", required: true, description: "", options: ["FinTech", "HealthTech", "EdTech", "Climate", "SaaS", "Other"] },
-  { id: "q6", type: "section_header", label: "Traction & Financials", required: false, description: "" },
-  { id: "q7", type: "number", label: "Monthly Revenue (USD)", required: true, description: "Current MRR" },
-  { id: "q8", type: "dropdown", label: "Stage", required: true, description: "", options: ["Idea", "Pre-Seed", "Seed", "Series A", "Series B+"] },
-  { id: "q9", type: "long_text", label: "What problem are you solving?", required: true, description: "Max 500 characters" },
-  { id: "q10", type: "file_upload", label: "Pitch Deck", required: false, description: "PDF or PPTX, max 20MB" },
-];
-
-let counter = 11;
+let counter = 1;
 
 export default function FormBuilder() {
   const navigate = useNavigate();
   const { formId } = useParams();
-  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
-  const [selected, setSelected] = useState<string | null>("q2");
+  const queryClient = useQueryClient();
+  const { workspaceId } = useWorkspace();
+  const isNew = formId === "new";
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [isDraft, setIsDraft] = useState(true);
+
+  const { isLoading } = useQuery({
+    queryKey: ["form-builder", formId, workspaceId],
+    enabled: !isNew && !!formId && !!workspaceId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId || !formId || isNew) return null;
+
+      const { data: form } = await supabase
+        .from("forms")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("id", formId)
+        .single();
+      const { data: qs } = await supabase
+        .from("form_questions")
+        .select("*")
+        .eq("form_id", formId)
+        .order("sort_order", { ascending: true });
+
+      if (form) {
+        setTitle(form.name);
+        setDescription(form.description ?? "");
+        setIsDraft(form.status !== "open");
+      }
+      if (qs && qs.length > 0) {
+        const mapped = qs.map((q) => ({
+            id: q.id,
+            type: q.type as QuestionType,
+            label: q.label,
+            required: q.required,
+            description: q.description ?? "",
+            options: Array.isArray(q.options) ? (q.options as string[]) : undefined,
+          }));
+        setQuestions(mapped);
+        setSelected(mapped[0]?.id ?? null);
+      }
+      return null;
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (publish: boolean) => {
+      if (!supabase || !workspaceId) return;
+
+      let activeFormId = formId;
+      if (isNew) {
+        const { data: inserted } = await supabase
+          .from("forms")
+          .insert({
+            workspace_id: workspaceId,
+            name: title.trim(),
+            description: description || null,
+            status: publish ? "open" : "draft",
+          })
+          .select("id")
+          .single();
+        activeFormId = inserted?.id ?? null;
+      } else if (formId) {
+        await supabase
+          .from("forms")
+          .update({
+            name: title.trim(),
+            description: description || null,
+            status: publish ? "open" : "draft",
+          })
+          .eq("id", formId)
+          .eq("workspace_id", workspaceId);
+      }
+
+      if (!activeFormId) return;
+
+      await supabase.from("form_questions").delete().eq("form_id", activeFormId);
+      if (questions.length > 0) {
+        await supabase.from("form_questions").insert(
+          questions.map((q, index) => ({
+            form_id: activeFormId,
+            sort_order: index,
+            type: q.type,
+            label: q.label,
+            required: q.required,
+            description: q.description || null,
+            options: q.options ?? null,
+          })),
+        );
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["forms"] });
+      if (isNew) navigate(`/accelerator/applications/forms/${activeFormId}/builder`, { replace: true });
+    },
+  });
 
   const addQuestion = (type: QuestionType) => {
     const id = `q${counter++}`;
@@ -101,7 +186,11 @@ export default function FormBuilder() {
           <Button
             size="sm"
             className="h-8 text-xs gap-1 bg-accent text-accent-foreground hover:bg-accent/90"
-            onClick={() => setIsDraft(false)}
+            onClick={() => {
+              setIsDraft(false);
+              saveMutation.mutate(true);
+            }}
+            disabled={saveMutation.isPending || !title.trim()}
           >
             <Save className="h-3 w-3" /> {isDraft ? "Publish" : "Save"}
           </Button>
@@ -142,12 +231,14 @@ export default function FormBuilder() {
             <div className="mb-6">
               <Input
                 className="text-lg font-semibold border-none bg-transparent px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground"
-                defaultValue={formId === "new" ? "" : "Batch 2025-A Application"}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="Form Title"
               />
               <Input
                 className="text-sm text-muted-foreground border-none bg-transparent px-0 h-auto mt-1 focus-visible:ring-0 placeholder:text-muted-foreground/60"
-                defaultValue=""
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional description..."
               />
             </div>
@@ -221,6 +312,13 @@ export default function FormBuilder() {
                 </CardContent>
               </Card>
             ))}
+            {questions.length === 0 && (
+              <Card className="shadow-sm border-dashed">
+                <CardContent className="p-8 text-center text-muted-foreground text-sm">
+                  Add question blocks from the left panel to build this form.
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
@@ -256,16 +354,7 @@ export default function FormBuilder() {
                     />
                   </div>
                   <Separator />
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    <span>Character limit</span>
-                    <Badge variant="outline" className="text-[10px] ml-auto">Soon</Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    <span>Validation rules</span>
-                    <Badge variant="outline" className="text-[10px] ml-auto">Soon</Badge>
-                  </div>
+                  <div className="text-[11px] text-muted-foreground">Validation configuration will be available soon.</div>
                 </>
               )}
               <Separator />
@@ -284,6 +373,17 @@ export default function FormBuilder() {
             </div>
           )}
         </div>
+      </div>
+      <div className="h-10 border-t px-4 flex items-center justify-end bg-card">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => saveMutation.mutate(false)}
+          disabled={saveMutation.isPending || isLoading || !title.trim()}
+        >
+          Save Draft
+        </Button>
       </div>
     </div>
   );

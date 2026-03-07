@@ -438,6 +438,38 @@ export type Database = {
           workspace_id?: string;
         };
       };
+      workspace_settings: {
+        Row: {
+          ai_risk_alerts: boolean;
+          automated_review_reminders: boolean;
+          cohort_benchmarking: boolean;
+          document_auto_tagging: boolean;
+          founder_financial_sync: boolean;
+          sync_frequency: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          ai_risk_alerts?: boolean;
+          automated_review_reminders?: boolean;
+          cohort_benchmarking?: boolean;
+          document_auto_tagging?: boolean;
+          founder_financial_sync?: boolean;
+          sync_frequency?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          ai_risk_alerts?: boolean;
+          automated_review_reminders?: boolean;
+          cohort_benchmarking?: boolean;
+          document_auto_tagging?: boolean;
+          founder_financial_sync?: boolean;
+          sync_frequency?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+      };
       workspaces: {
         Row: {
           created_at: string;

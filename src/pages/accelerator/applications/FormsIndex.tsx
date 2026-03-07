@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { useRole } from "@/contexts/RoleContext";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Plus, Search, Copy, Archive, ExternalLink, FileText } from "lucide-react";
 
 interface AppForm {
@@ -17,13 +20,6 @@ interface AppForm {
   publishLink: string;
 }
 
-const mockForms: AppForm[] = [
-  { id: "f1", name: "Batch 2025-A Application", status: "open", responses: 142, deadline: "Apr 15, 2026", created: "Feb 1, 2026", publishLink: "https://apply.eera.io/2025a" },
-  { id: "f2", name: "Climate Tech Cohort", status: "open", responses: 67, deadline: "May 1, 2026", created: "Mar 1, 2026", publishLink: "https://apply.eera.io/climate" },
-  { id: "f3", name: "FinTech Sprint 2024", status: "closed", responses: 234, deadline: "Dec 31, 2024", created: "Oct 1, 2024", publishLink: "" },
-  { id: "f4", name: "Healthcare Innovation", status: "draft", responses: 0, deadline: "—", created: "Mar 2, 2026", publishLink: "" },
-];
-
 const statusStyles: Record<string, string> = {
   open: "bg-success/10 text-success",
   closed: "bg-muted text-muted-foreground",
@@ -33,9 +29,37 @@ const statusStyles: Record<string, string> = {
 export default function FormsIndex() {
   const [search, setSearch] = useState("");
   const { canAccess } = useRole();
+  const { workspaceId } = useWorkspace();
   const navigate = useNavigate();
+  const { data: forms = [] } = useQuery({
+    queryKey: ["forms", workspaceId],
+    enabled: !!workspaceId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId) return [];
 
-  const filtered = mockForms.filter((f) =>
+      const [formsRes, appsRes] = await Promise.all([
+        supabase.from("forms").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+        supabase.from("applications").select("id, form_id").eq("workspace_id", workspaceId),
+      ]);
+
+      const appCounts = new Map<string, number>();
+      for (const app of appsRes.data ?? []) {
+        if (app.form_id) appCounts.set(app.form_id, (appCounts.get(app.form_id) ?? 0) + 1);
+      }
+
+      return (formsRes.data ?? []).map((f) => ({
+        id: f.id,
+        name: f.name,
+        status: f.status as AppForm["status"],
+        responses: appCounts.get(f.id) ?? 0,
+        deadline: f.deadline ? new Date(f.deadline).toLocaleDateString() : "—",
+        created: new Date(f.created_at).toLocaleDateString(),
+        publishLink: f.publish_link ?? "",
+      }));
+    },
+  });
+
+  const filtered = forms.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase())
   );
 

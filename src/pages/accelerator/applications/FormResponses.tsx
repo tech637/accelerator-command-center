@@ -8,6 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, useParams } from "react-router-dom";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Search, Filter, Download, ArrowLeft, UserPlus, ArrowRight } from "lucide-react";
 
 interface Application {
@@ -23,17 +26,6 @@ interface Application {
   status: "applied" | "screening" | "shortlisted" | "interview" | "accepted" | "rejected";
   aiFit: "strong" | "medium" | "weak" | null;
 }
-
-const mockApplications: Application[] = [
-  { id: "a1", applicantName: "James Okafor", startupName: "PayStack Lite", stage: "Seed", score: 8.2, reviewer: "Sarah K.", industry: "FinTech", revenue: "$45K", dateApplied: "Mar 1, 2026", status: "shortlisted", aiFit: "strong" },
-  { id: "a2", applicantName: "Amara Diallo", startupName: "MedBridge", stage: "Pre-Seed", score: 7.1, reviewer: "Ahmed M.", industry: "HealthTech", revenue: "$12K", dateApplied: "Feb 28, 2026", status: "screening", aiFit: "medium" },
-  { id: "a3", applicantName: "Liam Chen", startupName: "EduWave", stage: "Seed", score: null, reviewer: null, industry: "EdTech", revenue: "$28K", dateApplied: "Feb 27, 2026", status: "applied", aiFit: null },
-  { id: "a4", applicantName: "Priya Sharma", startupName: "CarbonZero", stage: "Series A", score: 9.0, reviewer: "Sarah K.", industry: "Climate", revenue: "$180K", dateApplied: "Feb 26, 2026", status: "interview", aiFit: "strong" },
-  { id: "a5", applicantName: "Carlos Rivera", startupName: "LogiTrack", stage: "Pre-Seed", score: 4.5, reviewer: "David L.", industry: "Logistics", revenue: "$3K", dateApplied: "Feb 25, 2026", status: "rejected", aiFit: "weak" },
-  { id: "a6", applicantName: "Fatima Hassan", startupName: "AgriSense", stage: "Seed", score: 7.8, reviewer: null, industry: "AgriTech", revenue: "$55K", dateApplied: "Feb 24, 2026", status: "screening", aiFit: "medium" },
-  { id: "a7", applicantName: "Noah Kim", startupName: "QuantumPay", stage: "Seed", score: 8.5, reviewer: "Ahmed M.", industry: "FinTech", revenue: "$92K", dateApplied: "Feb 23, 2026", status: "accepted", aiFit: "strong" },
-  { id: "a8", applicantName: "Zara Osei", startupName: "HealthPulse", stage: "Pre-Seed", score: 6.0, reviewer: "Lisa W.", industry: "HealthTech", revenue: "$8K", dateApplied: "Feb 22, 2026", status: "applied", aiFit: "medium" },
-];
 
 const stageColors: Record<string, string> = {
   applied: "bg-muted text-muted-foreground",
@@ -52,12 +44,54 @@ const fitColors: Record<string, string> = {
 
 export default function FormResponses() {
   const { formId } = useParams();
+  const { workspaceId } = useWorkspace();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
+  const { data: formName } = useQuery({
+    queryKey: ["form-name", workspaceId, formId],
+    enabled: !!workspaceId && !!formId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId || !formId) return "Application Form";
+      const { data } = await supabase
+        .from("forms")
+        .select("name")
+        .eq("workspace_id", workspaceId)
+        .eq("id", formId)
+        .maybeSingle();
+      return data?.name ?? "Application Form";
+    },
+  });
+  const { data: applications = [] } = useQuery({
+    queryKey: ["applications", workspaceId, formId],
+    enabled: !!workspaceId && !!formId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId || !formId) return [];
+      const { data } = await supabase
+        .from("applications")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("form_id", formId)
+        .order("date_applied", { ascending: false });
 
-  const filtered = mockApplications.filter((a) => {
+      return (data ?? []).map((a) => ({
+        id: a.id,
+        applicantName: a.applicant_name,
+        startupName: a.startup_name,
+        stage: a.stage ?? "—",
+        score: a.score,
+        reviewer: a.reviewer,
+        industry: a.industry ?? "—",
+        revenue: a.revenue !== null ? `$${Math.round(a.revenue / 1000)}K` : "—",
+        dateApplied: new Date(a.date_applied).toLocaleDateString(),
+        status: a.status as Application["status"],
+        aiFit: (a.ai_fit as Application["aiFit"]) ?? null,
+      }));
+    },
+  });
+
+  const filtered = applications.filter((a) => {
     const matchSearch =
       a.applicantName.toLowerCase().includes(search.toLowerCase()) ||
       a.startupName.toLowerCase().includes(search.toLowerCase());
@@ -80,8 +114,8 @@ export default function FormResponses() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Batch 2025-A Application</h1>
-          <p className="text-sm text-muted-foreground">{mockApplications.length} responses</p>
+          <h1 className="text-xl font-semibold text-foreground">{formName ?? "Application Form"}</h1>
+          <p className="text-sm text-muted-foreground">{applications.length} responses</p>
         </div>
       </div>
 

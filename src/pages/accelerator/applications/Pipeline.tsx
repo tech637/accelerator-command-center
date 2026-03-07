@@ -3,6 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { ArrowLeft, GripVertical } from "lucide-react";
 
 interface PipelineCard {
@@ -40,35 +43,58 @@ const fitColors: Record<string, string> = {
   weak: "bg-destructive/10 text-destructive",
 };
 
-const initialData: Record<Stage, PipelineCard[]> = {
-  applied: [
-    { id: "a3", startupName: "EduWave", founderName: "Liam Chen", score: null, aiFit: null, reviewer: null },
-    { id: "a8", startupName: "HealthPulse", founderName: "Zara Osei", score: 6.0, aiFit: "medium", reviewer: "Lisa W." },
-  ],
-  screening: [
-    { id: "a2", startupName: "MedBridge", founderName: "Amara Diallo", score: 7.1, aiFit: "medium", reviewer: "Ahmed M." },
-    { id: "a6", startupName: "AgriSense", founderName: "Fatima Hassan", score: 7.8, aiFit: "medium", reviewer: null },
-  ],
-  shortlisted: [
-    { id: "a1", startupName: "PayStack Lite", founderName: "James Okafor", score: 8.2, aiFit: "strong", reviewer: "Sarah K." },
-  ],
-  interview: [
-    { id: "a4", startupName: "CarbonZero", founderName: "Priya Sharma", score: 9.0, aiFit: "strong", reviewer: "Sarah K." },
-  ],
-  accepted: [
-    { id: "a7", startupName: "QuantumPay", founderName: "Noah Kim", score: 8.5, aiFit: "strong", reviewer: "Ahmed M." },
-  ],
-  rejected: [
-    { id: "a5", startupName: "LogiTrack", founderName: "Carlos Rivera", score: 4.5, aiFit: "weak", reviewer: "David L." },
-  ],
-};
-
 const stages: Stage[] = ["applied", "screening", "shortlisted", "interview", "accepted", "rejected"];
 
 export default function Pipeline() {
   const navigate = useNavigate();
-  const [pipeline, setPipeline] = useState(initialData);
+  const queryClient = useQueryClient();
+  const { workspaceId } = useWorkspace();
+  const [pipeline, setPipeline] = useState<Record<Stage, PipelineCard[]>>({
+    applied: [],
+    screening: [],
+    shortlisted: [],
+    interview: [],
+    accepted: [],
+    rejected: [],
+  });
   const [dragging, setDragging] = useState<{ stage: Stage; cardId: string } | null>(null);
+  useQuery({
+    queryKey: ["pipeline", workspaceId],
+    enabled: !!workspaceId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId) return null;
+      const { data } = await supabase.from("applications").select("*").eq("workspace_id", workspaceId);
+      const grouped: Record<Stage, PipelineCard[]> = {
+        applied: [],
+        screening: [],
+        shortlisted: [],
+        interview: [],
+        accepted: [],
+        rejected: [],
+      };
+      for (const app of data ?? []) {
+        const key = app.status as Stage;
+        if (!grouped[key]) continue;
+        grouped[key].push({
+          id: app.id,
+          startupName: app.startup_name,
+          founderName: app.applicant_name,
+          score: app.score,
+          aiFit: (app.ai_fit as PipelineCard["aiFit"]) ?? null,
+          reviewer: app.reviewer,
+        });
+      }
+      setPipeline(grouped);
+      return null;
+    },
+  });
+  const updateStage = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: Stage }) => {
+      if (!supabase || !workspaceId) return;
+      await supabase.from("applications").update({ status }).eq("id", id).eq("workspace_id", workspaceId);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pipeline", workspaceId] }),
+  });
 
   const handleDragStart = (stage: Stage, cardId: string) => {
     setDragging({ stage, cardId });
@@ -82,6 +108,7 @@ export default function Pipeline() {
     setPipeline((prev) => {
       const card = prev[dragging.stage].find((c) => c.id === dragging.cardId);
       if (!card) return prev;
+      updateStage.mutate({ id: card.id, status: targetStage });
       return {
         ...prev,
         [dragging.stage]: prev[dragging.stage].filter((c) => c.id !== dragging.cardId),

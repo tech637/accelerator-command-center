@@ -6,13 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search, Filter, Calendar as CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 interface Cohort {
   id: string;
@@ -47,10 +51,16 @@ export default function Cohorts() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "on-track" | "at-risk" | "critical">("all");
   const [newName, setNewName] = useState("");
-  const [newDuration, setNewDuration] = useState("");
+  const [newDurationRange, setNewDurationRange] = useState<DateRange | undefined>(undefined);
   const [newCadence, setNewCadence] = useState("monthly");
   const { canAccess } = useRole();
   const navigate = useNavigate();
+  const formatDurationLabel = (from?: Date, to?: Date) => {
+    if (from && to) return `${format(from, "MMM d, yyyy")} - ${format(to, "MMM d, yyyy")}`;
+    if (from) return `${format(from, "MMM d, yyyy")} - ...`;
+    return "";
+  };
+
   const { data: cohorts = [] } = useQuery({
     queryKey: ["cohorts", workspaceId],
     enabled: !!workspaceId && !!supabase,
@@ -67,7 +77,11 @@ export default function Cohorts() {
       return (cohortsRes.data ?? []).map((c) => ({
         id: c.id,
         name: c.name,
-        duration: c.duration ?? "—",
+        duration:
+          c.duration ??
+          (c.start_date && c.end_date
+            ? `${new Date(c.start_date).toLocaleDateString()} - ${new Date(c.end_date).toLocaleDateString()}`
+            : "—"),
         cadence: c.cadence ?? "—",
         status: c.status as Cohort["status"],
         startups: startupRows
@@ -91,14 +105,16 @@ export default function Cohorts() {
       await supabase.from("cohorts").insert({
         workspace_id: workspaceId,
         name: newName.trim(),
-        duration: newDuration || null,
+        duration: formatDurationLabel(newDurationRange?.from, newDurationRange?.to) || null,
+        start_date: newDurationRange?.from ? newDurationRange.from.toISOString().slice(0, 10) : null,
+        end_date: newDurationRange?.to ? newDurationRange.to.toISOString().slice(0, 10) : null,
         cadence: newCadence,
         status: "active",
       });
     },
     onSuccess: () => {
       setNewName("");
-      setNewDuration("");
+      setNewDurationRange(undefined);
       setNewCadence("monthly");
       queryClient.invalidateQueries({ queryKey: ["cohorts", workspaceId] });
     },
@@ -136,7 +152,38 @@ export default function Cohorts() {
                     </div>
                     <div>
                       <Label className="text-xs">Duration</Label>
-                      <Input placeholder="e.g. Jan 2025 – Jun 2025" className="mt-1" value={newDuration} onChange={(e) => setNewDuration(e.target.value)} />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="mt-1 w-full justify-start text-left font-normal"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {newDurationRange?.from ? (
+                              newDurationRange.to ? (
+                                <>
+                                  {format(newDurationRange.from, "MMM d, yyyy")} -{" "}
+                                  {format(newDurationRange.to, "MMM d, yyyy")}
+                                </>
+                              ) : (
+                                format(newDurationRange.from, "MMM d, yyyy")
+                              )
+                            ) : (
+                              <span className="text-muted-foreground">Select duration</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={newDurationRange?.from}
+                            selected={newDurationRange}
+                            onSelect={setNewDurationRange}
+                            numberOfMonths={2}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div>
                       <Label className="text-xs">Evaluation Cadence</Label>

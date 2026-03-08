@@ -313,7 +313,6 @@ export default function FormBuilder() {
             size="sm"
             className="h-8 text-xs gap-1"
             onClick={() => setIsPreviewOpen(true)}
-            disabled={!title.trim()}
           >
             <Eye className="h-3 w-3" /> Preview
           </Button>

@@ -377,6 +377,15 @@ export default function FormBuilder() {
             <Eye className="h-3 w-3" /> Preview
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => saveMutation.mutate(false)}
+            disabled={saveMutation.isPending || isLoading || !title.trim()}
+          >
+            Save Draft
+          </Button>
+          <Button
             size="sm"
             className="h-8 text-xs gap-1 bg-accent text-accent-foreground hover:bg-accent/90"
             onClick={() => {
@@ -655,17 +664,6 @@ export default function FormBuilder() {
             </div>
           )}
         </div>
-      </div>
-      <div className="h-10 border-t px-4 flex items-center justify-end bg-card">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => saveMutation.mutate(false)}
-          disabled={saveMutation.isPending || isLoading || !title.trim()}
-        >
-          Save Draft
-        </Button>
       </div>
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>

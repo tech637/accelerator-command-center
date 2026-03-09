@@ -61,6 +61,7 @@ export default function PublicForm() {
   const [startupName, setStartupName] = useState("");
   const [email, setEmail] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const { data: formData, isLoading } = useQuery({
     queryKey: ["public-form", publishSlug],
@@ -128,10 +129,7 @@ export default function PublicForm() {
     },
     onSuccess: () => {
       toast({ title: "Application submitted", description: "Your response has been recorded." });
-      setApplicantName("");
-      setStartupName("");
-      setEmail("");
-      setAnswers({});
+      setIsSubmitted(true);
     },
     onError: (error) => {
       toast({
@@ -148,6 +146,38 @@ export default function PublicForm() {
 
   if (!formData?.form) {
     return <div className="min-h-screen p-8 text-sm text-muted-foreground">This form is unavailable.</div>;
+  }
+
+  if (isSubmitted) {
+    return (
+      <div className="min-h-screen bg-muted/20 p-6 flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Application Submitted!</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Thank you for applying to {formData.form.name}. We have received your application and will review it shortly.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsSubmitted(false);
+                setApplicantName("");
+                setStartupName("");
+                setEmail("");
+                setAnswers({});
+              }}
+            >
+              Submit Another Application
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

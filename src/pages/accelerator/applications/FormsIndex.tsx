@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
@@ -32,6 +33,7 @@ const statusStyles: Record<string, string> = {
 
 export default function FormsIndex() {
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"open" | "draft" | "closed" | "archived">("open");
   const { canAccess } = useRole();
   const { workspaceId } = useWorkspace();
   const navigate = useNavigate();
@@ -83,9 +85,26 @@ export default function FormsIndex() {
     },
   });
 
-  const filtered = forms.filter((f) =>
-    f.name.toLowerCase().includes(search.toLowerCase())
+  const tabCounts = forms.reduce<Record<"open" | "draft" | "closed" | "archived", number>>(
+    (acc, form) => {
+      if (
+        form.status === "open" ||
+        form.status === "draft" ||
+        form.status === "closed" ||
+        form.status === "archived"
+      ) {
+        acc[form.status] += 1;
+      }
+      return acc;
+    },
+    { open: 0, draft: 0, closed: 0, archived: 0 },
   );
+
+  const filtered = forms.filter((form) => {
+    const matchesSearch = form.name.toLowerCase().includes(search.toLowerCase());
+    const matchesTab = form.status === activeTab;
+    return matchesSearch && matchesTab;
+  });
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -115,12 +134,31 @@ export default function FormsIndex() {
         />
       </div>
 
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+        <TabsList className="h-9">
+          <TabsTrigger value="open" className="text-xs">
+            Open ({tabCounts.open})
+          </TabsTrigger>
+          <TabsTrigger value="draft" className="text-xs">
+            Draft ({tabCounts.draft})
+          </TabsTrigger>
+          <TabsTrigger value="closed" className="text-xs">
+            Closed ({tabCounts.closed})
+          </TabsTrigger>
+          <TabsTrigger value="archived" className="text-xs">
+            Archived ({tabCounts.archived})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {filtered.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <FileText className="h-8 w-8 mb-3 opacity-40" />
             <p className="text-sm font-medium">No forms found</p>
-            <p className="text-xs mt-1">Create a new application form to get started.</p>
+            <p className="text-xs mt-1">
+              {`No ${activeTab} forms match your search.`}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -156,6 +194,38 @@ export default function FormsIndex() {
                   Version {form.version} • Published {form.publishedAt}
                 </div>
 
+                {form.publishLink && form.status === "open" && (
+                  <div className="mb-3 p-2 bg-muted/50 rounded-md">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Public URL</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs text-foreground truncate">{form.publishLink}</code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await navigator.clipboard.writeText(form.publishLink);
+                          toast({ title: "Link copied", description: "Public URL copied to clipboard." });
+                        }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(form.publishLink, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 border-t pt-3" onClick={(e) => e.stopPropagation()}>
                   {form.publishLink && (
                     <Button
@@ -176,9 +246,20 @@ export default function FormsIndex() {
                       await navigator.clipboard.writeText(form.publishLink);
                       toast({ title: "Link copied", description: "Publish link copied to clipboard." });
                     }}
+                    disabled={!form.publishLink}
                   >
-                    <Copy className="h-3 w-3" /> Duplicate
+                    <Copy className="h-3 w-3" /> Copy link
                   </Button>
+                  {form.status === "draft" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs gap-1 text-muted-foreground"
+                      onClick={() => navigate(`/accelerator/applications/forms/${form.id}/builder`)}
+                    >
+                      Edit draft
+                    </Button>
+                  )}
                   {form.status === "open" ? (
                     <Button
                       variant="ghost"
@@ -197,15 +278,26 @@ export default function FormsIndex() {
                     >
                       Reopen
                     </Button>
+                  ) : form.status === "archived" ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs gap-1 text-muted-foreground"
+                      onClick={() => setStatusMutation.mutate({ formId: form.id, status: "open" })}
+                    >
+                      Restore
+                    </Button>
                   ) : null}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs gap-1 text-muted-foreground"
-                    onClick={() => setStatusMutation.mutate({ formId: form.id, status: "archived" })}
-                  >
-                    <Archive className="h-3 w-3" /> Archive
-                  </Button>
+                  {form.status !== "archived" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs gap-1 text-muted-foreground"
+                      onClick={() => setStatusMutation.mutate({ formId: form.id, status: "archived" })}
+                    >
+                      <Archive className="h-3 w-3" /> Archive
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

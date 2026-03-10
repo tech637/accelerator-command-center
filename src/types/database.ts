@@ -149,6 +149,7 @@ export type Database = {
       };
       forms: {
         Row: {
+          cohort_id: string | null;
           created_at: string;
           deadline: string | null;
           description: string | null;
@@ -162,6 +163,7 @@ export type Database = {
           workspace_id: string;
         };
         Insert: {
+          cohort_id?: string | null;
           created_at?: string;
           deadline?: string | null;
           description?: string | null;
@@ -175,6 +177,7 @@ export type Database = {
           workspace_id: string;
         };
         Update: {
+          cohort_id?: string | null;
           created_at?: string;
           deadline?: string | null;
           description?: string | null;

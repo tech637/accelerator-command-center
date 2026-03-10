@@ -9,7 +9,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, useParams } from "react-router-dom";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useRole } from "@/contexts/RoleContext";
 import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Search, Filter, Download, ArrowLeft, UserPlus, ArrowRight } from "lucide-react";
 
@@ -22,6 +24,9 @@ interface Application {
   reviewer: string | null;
   industry: string;
   revenue: string;
+  rawRevenue: number | null;
+  startupId: string | null;
+  applicantEmail: string | null;
   dateApplied: string;
   status: "applied" | "screening" | "shortlisted" | "interview" | "accepted" | "rejected";
   aiFit: "strong" | "medium" | "weak" | null;
@@ -45,10 +50,13 @@ const fitColors: Record<string, string> = {
 export default function FormResponses() {
   const { formId } = useParams();
   const { workspaceId } = useWorkspace();
+  const { canAccess } = useRole();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
+  const canReview = canAccess(["admin", "program_manager"]);
   const { data: formName } = useQuery({
     queryKey: ["form-name", workspaceId, formId],
     enabled: !!workspaceId && !!formId && !!supabase,
@@ -56,11 +64,11 @@ export default function FormResponses() {
       if (!supabase || !workspaceId || !formId) return "Application Form";
       const { data } = await supabase
         .from("forms")
-        .select("name")
+        .select("name, cohort_id")
         .eq("workspace_id", workspaceId)
         .eq("id", formId)
         .maybeSingle();
-      return data?.name ?? "Application Form";
+      return data ?? { name: "Application Form", cohort_id: null };
     },
   });
   const { data: applications = [] } = useQuery({
@@ -84,10 +92,56 @@ export default function FormResponses() {
         reviewer: a.reviewer,
         industry: a.industry ?? "—",
         revenue: a.revenue !== null ? `$${Math.round(a.revenue / 1000)}K` : "—",
+        rawRevenue: a.revenue,
+        startupId: a.startup_id,
+        applicantEmail: a.email,
         dateApplied: new Date(a.date_applied).toLocaleDateString(),
         status: a.status as Application["status"],
         aiFit: (a.ai_fit as Application["aiFit"]) ?? null,
       }));
+    },
+  });
+
+  const decisionMutation = useMutation({
+    mutationFn: async ({ application, decision }: { application: Application; decision: "accepted" | "rejected" }) => {
+      if (!supabase || !workspaceId || !formId) return;
+
+      let startupId = application.startupId;
+      if (decision === "accepted" && !startupId) {
+        const { data: createdStartup, error: startupError } = await supabase
+          .from("startups")
+          .insert({
+            workspace_id: workspaceId,
+            name: application.startupName,
+            founder_name: application.applicantName,
+            founder_email: application.applicantEmail,
+            industry: application.industry === "—" ? null : application.industry,
+            revenue: application.rawRevenue,
+            stage: "Accepted",
+            status: "on-track",
+            cohort_id: formName?.cohort_id ?? null,
+          })
+          .select("id")
+          .single();
+        if (startupError) throw startupError;
+        startupId = createdStartup?.id ?? null;
+      }
+
+      const { error } = await supabase
+        .from("applications")
+        .update({
+          status: decision,
+          stage: decision === "accepted" ? "Accepted" : "Rejected",
+          startup_id: startupId,
+        })
+        .eq("workspace_id", workspaceId)
+        .eq("id", application.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applications", workspaceId, formId] });
+      queryClient.invalidateQueries({ queryKey: ["cohorts", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline", workspaceId] });
     },
   });
 
@@ -114,7 +168,7 @@ export default function FormResponses() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-semibold text-foreground">{formName ?? "Application Form"}</h1>
+          <h1 className="text-xl font-semibold text-foreground">{formName?.name ?? "Application Form"}</h1>
           <p className="text-sm text-muted-foreground">{applications.length} responses</p>
         </div>
       </div>
@@ -188,12 +242,13 @@ export default function FormResponses() {
               <TableHead className="text-xs font-semibold">Revenue</TableHead>
               <TableHead className="text-xs font-semibold">Applied</TableHead>
               <TableHead className="text-xs font-semibold">Status</TableHead>
+              <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-12 text-muted-foreground text-sm">
+                <TableCell colSpan={12} className="text-center py-12 text-muted-foreground text-sm">
                   No applications match your filters.
                 </TableCell>
               </TableRow>
@@ -224,6 +279,29 @@ export default function FormResponses() {
                   <TableCell className="text-sm text-muted-foreground">{a.dateApplied}</TableCell>
                   <TableCell>
                     <Badge className={`text-xs capitalize ${stageColors[a.status]}`}>{a.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {canReview && (
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => decisionMutation.mutate({ application: a, decision: "rejected" })}
+                          disabled={decisionMutation.isPending || a.status === "rejected"}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
+                          onClick={() => decisionMutation.mutate({ application: a, decision: "accepted" })}
+                          disabled={decisionMutation.isPending || a.status === "accepted"}
+                        >
+                          Approve
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

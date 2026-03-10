@@ -113,6 +113,7 @@ export default function FormBuilder() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [selectedCohortId, setSelectedCohortId] = useState("none");
   const [isDraft, setIsDraft] = useState(true);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewAnswers, setPreviewAnswers] = useState<Record<string, string>>({});
@@ -139,6 +140,7 @@ export default function FormBuilder() {
         setTitle(form.name);
         setDescription(form.description ?? "");
         setDeadline(form.deadline ? form.deadline.slice(0, 10) : "");
+        setSelectedCohortId(form.cohort_id ?? "none");
         setIsDraft(form.status !== "open");
       }
       if (qs && qs.length > 0) {
@@ -155,6 +157,19 @@ export default function FormBuilder() {
         setSelected(mapped[0]?.id ?? null);
       }
       return null;
+    },
+  });
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ["form-builder-cohorts", workspaceId],
+    enabled: !!workspaceId && !!supabase,
+    queryFn: async () => {
+      if (!supabase || !workspaceId) return [];
+      const { data } = await supabase
+        .from("cohorts")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      return data ?? [];
     },
   });
 
@@ -207,6 +222,7 @@ export default function FormBuilder() {
             name: cleanTitle,
             description: cleanDescription || null,
             deadline: deadline || null,
+            cohort_id: selectedCohortId === "none" ? null : selectedCohortId,
             status: publish ? "open" : "draft",
             published_at: publishedAt,
             publish_slug: publishSlug,
@@ -224,6 +240,7 @@ export default function FormBuilder() {
             name: cleanTitle,
             description: cleanDescription || null,
             deadline: deadline || null,
+            cohort_id: selectedCohortId === "none" ? null : selectedCohortId,
             status: publish ? "open" : "draft",
             published_at: publish ? publishedAt : undefined,
             publish_slug: publish ? publishSlug : undefined,
@@ -449,6 +466,22 @@ export default function FormBuilder() {
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
                 />
+              </div>
+              <div className="pt-3 max-w-xs">
+                <Label className="text-xs text-muted-foreground">Target cohort (optional)</Label>
+                <Select value={selectedCohortId} onValueChange={setSelectedCohortId}>
+                  <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectValue placeholder="Select cohort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No cohort</SelectItem>
+                    {cohorts.map((cohort) => (
+                      <SelectItem key={cohort.id} value={cohort.id}>
+                        {cohort.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

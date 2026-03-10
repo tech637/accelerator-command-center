@@ -77,20 +77,77 @@ export default function ApplicationReview() {
                 ? "shortlisted"
                 : "screening";
 
-      await supabase
+      const { data: currentApplication, error: appFetchError } = await supabase
         .from("applications")
-        .update({
-          score: score[0],
-          notes,
-          status: mappedStatus,
-        })
+        .select("id, startup_id, startup_name, applicant_name, email, industry, revenue, form_id")
+        .eq("workspace_id", workspaceId)
+        .eq("id", applicationId)
+        .single();
+      if (appFetchError) throw appFetchError;
+
+      let startupId = currentApplication.startup_id;
+      if (mappedStatus === "accepted" && !startupId) {
+        let targetCohortId: string | null = null;
+        if (currentApplication.form_id) {
+          const { data: formRow } = await supabase
+            .from("forms")
+            .select("cohort_id")
+            .eq("workspace_id", workspaceId)
+            .eq("id", currentApplication.form_id)
+            .maybeSingle();
+          targetCohortId = formRow?.cohort_id ?? null;
+        }
+
+        const { data: createdStartup, error: startupCreateError } = await supabase
+          .from("startups")
+          .insert({
+            workspace_id: workspaceId,
+            name: currentApplication.startup_name,
+            founder_name: currentApplication.applicant_name,
+            founder_email: currentApplication.email,
+            industry: currentApplication.industry,
+            revenue: currentApplication.revenue,
+            stage: "Accepted",
+            status: "on-track",
+            cohort_id: targetCohortId,
+          })
+          .select("id")
+          .single();
+        if (startupCreateError) throw startupCreateError;
+        startupId = createdStartup?.id ?? null;
+      }
+
+      const updatePayload: {
+        score: number;
+        notes: string;
+        status: string;
+        startup_id?: string | null;
+        stage?: string;
+      } = {
+        score: score[0],
+        notes,
+        status: mappedStatus,
+      };
+
+      if (startupId) {
+        updatePayload.startup_id = startupId;
+      }
+      if (mappedStatus === "accepted") {
+        updatePayload.stage = "Accepted";
+      }
+
+      const { error: updateError } = await supabase
+        .from("applications")
+        .update(updatePayload)
         .eq("workspace_id", workspaceId)
         .eq("id", applicationId);
+      if (updateError) throw updateError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["application-review", workspaceId, applicationId] });
       queryClient.invalidateQueries({ queryKey: ["applications", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["pipeline", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["cohorts", workspaceId] });
     },
   });
 
